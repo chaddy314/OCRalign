@@ -67,6 +67,7 @@ function nw(s1, s2, op) {
             default: break;
         }
     }
+
     return chars.map(function(v) {
         return v.reverse().join('');
     });
