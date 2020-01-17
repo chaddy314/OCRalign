@@ -1,17 +1,16 @@
 package de.uniwue;
 
-import java.io.*;
 
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.Function;
-import org.mozilla.javascript.NativeArray;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
 
 public class Main {
-
-    public final int UP = 1;
-    public final int LEFT = 2;
-    public final int UL = 4;
+    public static final String ANSI_RESET = "\u001B[0m";
+    public static final String ANSI_YELLOW = "\u001B[33m";
+    public static final String ANSI_CYAN = "\u001B[36m";
+    public static final String ANSI_GREEN = "\u001B[32m";
+    public static final String ANSI_RED = "\u001B[31m";
 
     public static void main(String[] args) {
         boolean XML_MODE = false;
@@ -26,28 +25,50 @@ public class Main {
         }
 
 	    if(XML_MODE) {
-            System.out.println("XML not yer supported");
+	        String textFile = args[1];
+	        String xmlFile = args[0];
+            try {
+                gtText = Files.readString(Paths.get(textFile));
+
+                PageXML pageXML = new PageXML(xmlFile);
+                List<Textline> lines = pageXML.listOcrLines();
+                for (Textline line: lines) {
+                    //System.out.println(ANSI_RED + line.getOcrText());
+
+                    String[] result = Aligner.oldAlign(line.getOcrText(),gtText);
+
+                    System.out.println("\n\nTextLine ID: "+line.getId()+"\n");
+                    System.out.println("Testing:" + ANSI_CYAN + line.getOcrText() + ANSI_RESET);
+                    System.out.println();
+                    System.out.println(ANSI_RED + result[0] + ANSI_RESET);
+                    System.out.println();
+                    System.out.println(ANSI_GREEN + result[1] + ANSI_RESET);
+                    System.out.println("\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(result)*100.0 + "%");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
         } else {
 	        try {
-                String [] alignedStrings = nwAlign(ocrText,gtText);
-
-                for (String line: alignedStrings) {
-                    System.out.println(line);
-                }
-
-                int[] count = countChar(alignedStrings[0],'-');
-
-                alignedStrings[0] = stripLines(alignedStrings[0]);
+                double sim = Aligner.calcSimilarity(new String[]{ocrText,gtText});
+                System.out.println(ANSI_GREEN + "\nSimilarity from ocrText to gtText(using Levenshtein Distance): "+ sim + "%" + ANSI_RESET);
 
 
-
-                alignedStrings[1] = trimGt(alignedStrings[1],count[0],count[1]);
-
+                String[] oldResult = Aligner.oldAlign(ocrText,gtText);
+                String[] foldingResult = Aligner.align(ocrText,gtText);
                 //calcDiff(alignedStrings);
-                for (String line: alignedStrings) {
+                System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using normal method ###\n"+ANSI_RESET);
+                for (String line: oldResult) {
                     System.out.println(line);
                 }
+                System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(oldResult)*100.0 + "%" + ANSI_RESET);
 
+                System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using doubling method ###\n"+ANSI_RESET);
+                for (String line: foldingResult) {
+                    System.out.println(line);
+                }
+                System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(foldingResult)*100.0 + "%" + ANSI_RESET);
             } catch (Exception e) {
 	            e.printStackTrace();
             }
@@ -55,75 +76,5 @@ public class Main {
         }
     }
 
-    public static double calcDiff(String[] alignedStrings) {
-        return 0;
-    }
 
-    public static int[] countChar(String string, char c) {
-        int[] count = {0,0};
-        for(int i = 0; i < string.length(); i++) {
-            if(string.charAt(i) != '-') {
-                break;
-            } else {
-                count[0] ++;
-            }
-        }
-
-        for(int i = string.length() - 1; i >=0; i--) {
-            if(string.charAt(i) != '-') {
-                break;
-            } else {
-                count[1] ++;
-            }
-        }
-        return count;
-    }
-
-    public static String trimGt(String gtText, int begin, int end) {
-        return stripLines(gtText.substring(begin,gtText.length()-end));
-    }
-
-    public static String stripLines(String string) {
-        //for (String line: strings) {
-        string = string.replaceAll("^-+(?!$)", "");
-        string = string.replaceAll("-+$", "");
-
-        return string;
-    }
-
-    public static int findMiddle(String string, int middle) {
-        return 0;
-    }
-
-    public static String[] nwAlign(String s1, String s2) {
-
-        Context context = Context.enter();
-        try {
-            ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-            InputStream is = classloader.getResourceAsStream("alignment.js");
-
-            Reader jReader = new InputStreamReader(is);
-            try {
-                ScriptableObject scope  = context.initStandardObjects();
-                context.evaluateReader(scope, jReader, "alignment.js", 5,null);
-                Function fct = (Function)scope.get("nw",scope);
-                Object result = fct.call(context,scope,scope, new Object[] {s1,s2});
-                NativeArray arr = (NativeArray) result;
-                Object [] array = new Object[(int) arr.getLength()];
-                for (Object o : arr.getIds()) {
-                    int index = (Integer) o;
-                    array[index] = arr.get(index, null);
-                }
-
-                return new String[] {array[0].toString(),array[1].toString()};
-
-            } catch(Exception e) {
-                e.printStackTrace();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-
-        }
-        return null;
-    }
 }
