@@ -2,11 +2,13 @@ const UP   = 1;
 const LEFT = 2;
 const UL   = 4;
 
+const SYMBOL = "֍";
+
 function nw(s1, s2, op) {
     op = op || {};
     const G = op.G || 2;
     const P = op.P || 1;
-    const M = op.M || -4;
+    const M = op.M || -2;
     var mat   = {};
     var direc = {};
 
@@ -51,7 +53,7 @@ function nw(s1, s2, op) {
             case UP:
                 I--;
                 chars[0].push(s1.charAt(I));
-                chars[1].push('-');
+                chars[1].push(SYMBOL);
                 break;
             case LEFT:
                 J--;
