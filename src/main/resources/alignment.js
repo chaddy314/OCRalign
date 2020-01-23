@@ -8,7 +8,7 @@ function nw(s1, s2, op) {
     op = op || {};
     const G = op.G || 2;
     const P = op.P || 1;
-    const M = op.M || -2;
+    const M = op.M || -1;
     var mat   = {};
     var direc = {};
 

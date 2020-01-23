@@ -9,6 +9,7 @@ import org.mozilla.javascript.ScriptableObject;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.text.Normalizer;
 
 public class Aligner {
 
@@ -106,12 +107,14 @@ public class Aligner {
 
     public static String[] align(String s1, String s2) {
 
-
+        s1 = Normalizer.normalize(s1, Normalizer.Form.NFKC);
+        s2 = Normalizer.normalize(s2,Normalizer.Form.NFKC);
         String[] alignedStrings = nwAlign(s1,s2);
 
         String[] rStrings = reverseStrings(new String[]{s1,s2});
         String[] rAlignedStrings = nwAlign(rStrings[0],rStrings[1]);
 
+        alignedStrings[0] = highlight(alignedStrings[0],alignedStrings[1]);
         /*
         //----------Testing Area----------------
         System.out.println(ANSI_YELLOW + "\n### Normal alignment from Back: ###\n" + ANSI_RESET);
@@ -126,15 +129,15 @@ public class Aligner {
         System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + calcSimilarity(rAlignedStrings)*100.0 + "%" + ANSI_RESET);
         //----------Testing Area----------------
         */
-        alignedStrings[0] = highlight(alignedStrings[0],alignedStrings[1]);
+
         int countBegin = countCharEnd(rAlignedStrings[0],symbol);
         int countEnd = countCharEnd(alignedStrings[0],symbol);
         alignedStrings[1] = trimGt(alignedStrings[1],countBegin,countEnd);
         alignedStrings[0] = stripLines(alignedStrings[0]);
         alignedStrings[0] = alignedStrings[0].replaceAll("["+symbol+"]{1,}","-");
         alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
-        nwAlign(alignedStrings[0],alignedStrings[1]);
-
+        //alignedStrings = nwAlign(alignedStrings[0],alignedStrings[1]);
+        //alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
         return alignedStrings;
     }
 

@@ -61,7 +61,7 @@ public class Main {
                 }
             } else {
                 try {
-                    //gtText = Files.readString(Paths.get(textFile));
+
                     int gtCount = countLinesNew(textFile);
                     PageXML pageXML = new PageXML(xmlFile);
                     List<Textline> lines = pageXML.listOcrLines();
@@ -77,21 +77,22 @@ public class Main {
                     gtText = reader.readLine();
                     for (Textline line: lines) {
                         if(gtText != null) {
-                            ocrText = Normalizer.normalize(ocrText, Normalizer.Form.NFKC);
-                            gtText = Normalizer.normalize(gtText,Normalizer.Form.NFC);
+                            ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
+                            gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
 
-                            String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
-                            String[] result = Aligner.align(line.getOcrText(),gtText);
+                            //String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
+                            String[] result = Aligner.align(ocrText,gtText);
+                            line.setLines(result);
 
                             System.out.println("\n\nTextLine ID: "+line.getId()+"\n");
-                            System.out.println("Testing:\t" + ANSI_CYAN + line.getOcrText() + ANSI_RESET);
+                            System.out.println("Testing:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
                             System.out.println();
                             System.out.println("Ocr aligned:\t"+result[0]);
                             System.out.println();
                             System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
                             System.out.println();
-                            System.out.println("GT Line:\t"+ ANSI_YELLOW + gtText + ANSI_RESET);
-                            //System.out.println("\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(result)*100.0 + "%");
+                            System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET);
+                            System.out.println("\nSimilarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*1000) + "%" + ANSI_RESET);
                             gtText = reader.readLine();
                         }
                     }
