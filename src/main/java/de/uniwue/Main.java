@@ -3,6 +3,7 @@ package de.uniwue;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.Normalizer;
 import java.util.List;
@@ -15,19 +16,60 @@ public class Main {
     public static final String ANSI_RED = "\u001B[31m";
     public static final String ANSI_PURPLE = "\u001B[35m";
 
-    public static void main(String[] args) {
-        boolean XML_MODE = false;
-	    String ocrText = "";
-	    String gtText = "";
+    enum Mode {
+        LINE,
+        XML,
+        BATCH,
+        HELP
+    }
 
-	    if(args[0].endsWith(".xml")) {
+    public static void main(String[] args) {
+
+        boolean overwrite =  true;
+        String ocrText = "";
+        String gtText = "";
+        String pathDir = "";
+        Mode mode;
+
+        switch (args[0]) {
+            case "-l":  mode = Mode.LINE;
+                        ocrText = args[1];
+                        gtText = args[2];
+                        checkLineMode(ocrText,gtText);
+                        break;
+            case "-x":  mode = Mode.XML;
+                        ocrText = args[1];
+                        gtText = args[2];
+                        overwrite = !(args.length == 4)&&args[3].equals("-s");
+                        checkXmlMode(ocrText,gtText);
+                        break;
+            case "-b":  mode = Mode.BATCH;
+                        pathDir = args[1];
+                        checkBatchMode(pathDir);
+                        break;
+            case "-h":  mode = Mode.HELP;
+                        return;
+            default:
+                mode = Mode.HELP;
+                System.out.println("Use flag -h for help");
+        }
+
+        switch (mode) {
+            case LINE:  doLineMode(ocrText,gtText); break;
+            case XML:   doXmlMode(ocrText,gtText); break;
+            case BATCH: doBatchMode(pathDir); break;
+            case HELP:  printHelp(); break;
+            default:    System.out.println("You should not be here");
+        }
+
+	    /*if(args[0].endsWith(".xml")) {
             XML_MODE = true;
         } else {
 	        ocrText = args[0];
             gtText = args[1];
-        }
+        }*/
 
-	    if(XML_MODE) {
+	   /*if(XML_MODE) {
 	        String textFile = args[1];
 	        String xmlFile = args[0];
 
@@ -60,74 +102,13 @@ public class Main {
 	                e.printStackTrace();
                 }
             } else {
-                try {
 
-                    int gtCount = countLinesNew(textFile);
-                    PageXML pageXML = new PageXML(xmlFile);
-                    List<Textline> lines = pageXML.listOcrLines();
-                    int ocrCount = lines.size();
-                    if(ocrCount != gtCount) {
-                        System.out.println("numbers of lines differed");
-                        System.out.println("No. of  gt liens was: " + gtCount);
-                        System.out.println("No. of ocr lines was: " + ocrCount);
-                        return;
-                    }
-                    BufferedReader reader;
-                    reader = new BufferedReader(new FileReader(textFile));
-                    gtText = reader.readLine();
-                    for (Textline line: lines) {
-                        if(gtText != null) {
-                            ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
-                            gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
-
-                            //String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
-                            String[] result = Aligner.align(ocrText,gtText);
-                            line.setLines(result);
-
-                            System.out.println("\n\nTextLine ID: "+line.getId()+"\n");
-                            System.out.println("Testing:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
-                            System.out.println();
-                            System.out.println("Ocr aligned:\t"+result[0]);
-                            System.out.println();
-                            System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
-                            System.out.println();
-                            System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET);
-                            System.out.println("\nSimilarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*1000) + "%" + ANSI_RESET);
-                            gtText = reader.readLine();
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
             }
 
         } else {
-	        try {
-                ocrText = Normalizer.normalize(ocrText, Normalizer.Form.NFKC);
-                gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
-                double sim = Aligner.calcSimilarity(new String[]{ocrText,gtText});
-                System.out.println(ANSI_GREEN + "\nSimilarity from ocrText to gtText(using Levenshtein Distance): "+ sim + "%" + ANSI_RESET);
 
 
-                String[] oldResult = Aligner.oldAlign(ocrText,gtText);
-                String[] foldingResult = Aligner.align(ocrText,gtText);
-                //calcDiff(alignedStrings);
-                System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using normal method ###\n"+ANSI_RESET);
-                for (String line: oldResult) {
-                    System.out.println(line);
-                }
-                System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(oldResult)*100.0 + "%" + ANSI_RESET);
-
-                System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using doubling method ###\n"+ANSI_RESET);
-                for (String line: foldingResult) {
-                    System.out.println(line);
-                }
-                System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(foldingResult)*100.0 + "%" + ANSI_RESET);
-            } catch (Exception e) {
-	            e.printStackTrace();
-            }
-
-        }
+        }*/
     }
 
     public static int countLinesNew(String filename) throws IOException {
@@ -169,5 +150,122 @@ public class Main {
         }
     }
 
+    public static void printHelp() {
+        System.out.println("usage:");
+        System.out.println();
+        System.out.println("LINE_MODE: \t[-l <string> <string>]");
+        System.out.println("XML_MODE: \t[-x xml-path=<path> gt-path<path>] [-s --safemode]");
+        System.out.println("BATCH_MODE:\t[-b <path>] [-s --safemode]");
+    }
 
+    public static boolean checkLineMode(String s1, String s2) {
+        if(s1.isEmpty() || s2.isEmpty()) {
+            System.out.println("ERROR: There was only one string");
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    public static boolean checkXmlMode(String pathXml, String pathGt) {
+        if(pathXml.endsWith(".xml") && pathGt.endsWith("gt.txt")) {
+            Path path1 = Paths.get(pathXml);
+            Path path2 = Paths.get(pathGt);
+            if(Files.exists(path1) && Files.exists(path2)) {
+                return true;
+            } else {
+                System.out.println("ERROR: Unknown File or Path");
+                return false;
+            }
+        } else {
+            System.out.println("ERROR: First file has to end with .xml and second file hast to end with .gt.txt");
+            return false;
+        }
+    }
+
+    public static boolean checkBatchMode(String folder) {
+        Path path = Paths.get(folder);
+        if(Files.exists(path)) {
+            return true;
+        } else {
+            System.out.println("ERROR: Unknown File or Path");
+            return false;
+        }
+    }
+
+    public static void doLineMode(String ocrText, String gtText) {
+        try {
+            ocrText = Normalizer.normalize(ocrText, Normalizer.Form.NFKC);
+            gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
+            double sim = Aligner.calcSimilarity(new String[]{ocrText,gtText});
+            System.out.println(ANSI_GREEN + "\nSimilarity from ocrText to gtText(using Levenshtein Distance): "+ sim + "%" + ANSI_RESET);
+
+
+            String[] oldResult = Aligner.oldAlign(ocrText,gtText);
+            String[] foldingResult = Aligner.align(ocrText,gtText);
+            //calcDiff(alignedStrings);
+            System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using normal method ###\n"+ANSI_RESET);
+            for (String line: oldResult) {
+                System.out.println(line);
+            }
+            System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(oldResult)*100.0 + "%" + ANSI_RESET);
+
+            System.out.println(ANSI_CYAN+"\n\n### Aligned Strings using doubling method ###\n"+ANSI_RESET);
+            for (String line: foldingResult) {
+                System.out.println(line);
+            }
+            System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(foldingResult)*100.0 + "%" + ANSI_RESET);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void doXmlMode(String xmlFile, String textFile) {
+        try {
+
+            int gtCount = countLinesNew(textFile);
+            PageXML pageXML = new PageXML(xmlFile);
+            List<Textline> lines = pageXML.listOcrLines();
+            int ocrCount = lines.size();
+            if(ocrCount != gtCount) {
+                System.out.println("numbers of lines differed");
+                System.out.println("No. of  gt liens was: " + gtCount);
+                System.out.println("No. of ocr lines was: " + ocrCount);
+                return;
+            }
+            BufferedReader reader;
+            reader = new BufferedReader(new FileReader(textFile));
+            String ocrText;
+            String gtText = reader.readLine();
+            for (Textline line: lines) {
+                if(gtText != null) {
+                    ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
+                    gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
+
+                    //String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
+                    String[] result = Aligner.align(ocrText,gtText);
+                    line.setLines(result);
+
+                    System.out.println("\n\nTextLine ID: "+line.getId()+"\n");
+                    System.out.println("Testing:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
+                    System.out.println();
+                    System.out.println("Ocr aligned:\t"+result[2]);
+                    System.out.println();
+                    System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
+                    System.out.println();
+                    System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET);
+                    System.out.println("\nSimilarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
+                    gtText = reader.readLine();
+                }
+            }
+            reader.close();
+            pageXML.updateTextlines(lines);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void doBatchMode(String pathDir) {
+        //TODO
+    }
 }

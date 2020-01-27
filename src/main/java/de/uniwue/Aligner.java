@@ -114,7 +114,10 @@ public class Aligner {
         String[] rStrings = reverseStrings(new String[]{s1,s2});
         String[] rAlignedStrings = nwAlign(rStrings[0],rStrings[1]);
 
-        alignedStrings[0] = highlight(alignedStrings[0],alignedStrings[1]);
+        String[] result = new String[3];
+
+        result[2] = highlight(alignedStrings[0],alignedStrings[1]);
+        //alignedStrings[0] = highlight(alignedStrings[0],alignedStrings[1]);
         /*
         //----------Testing Area----------------
         System.out.println(ANSI_YELLOW + "\n### Normal alignment from Back: ###\n" + ANSI_RESET);
@@ -136,9 +139,11 @@ public class Aligner {
         alignedStrings[0] = stripLines(alignedStrings[0]);
         alignedStrings[0] = alignedStrings[0].replaceAll("["+symbol+"]{1,}","-");
         alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
+        result[0] = alignedStrings[0];
+        result[1] = alignedStrings[1];
         //alignedStrings = nwAlign(alignedStrings[0],alignedStrings[1]);
         //alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
-        return alignedStrings;
+        return result;
     }
 
     public static String[] oldAlign(String s1, String s2) {

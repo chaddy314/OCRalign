@@ -106,7 +106,8 @@ public class PageXML {
         return null;
     }
 
-    public void updateTextline(String id, String text) {
+    public void updateTextlines(List<Textline> lines) {
+        this.textlines = lines;
         List<Textline> ocrLines = new LinkedList<Textline>();
         //System.out.println(rootElement.getChildNodes().item(1).getNodeName());
         NodeList nList = rootElement.getChildNodes();
@@ -141,17 +142,34 @@ public class PageXML {
                 }
 
                 for (Element xmlTextline : textElementList){
+                    boolean hasGt = false;
                     String xmlId = xmlTextline.getAttribute("id");
+                    Textline line = getTextLineByID(xmlId);
                     NodeList anotherList = xmlTextline.getChildNodes();
 
-                    if(xmlId.equals(id)) {
-                        Element newTextEquiv = pageXml.createElement("TextEquiv");
-                        newTextEquiv.setAttribute("index","0");
-                        Element newText = pageXml.createElement("Unicode");
-                        newText.appendChild(pageXml.createTextNode(text));
+                    for(int i = 0; i<anotherList.getLength(); i++) {
+                        Element node = (Element) anotherList.item(i);
+                        String index = node.getAttribute("index");
+                        if(index.equals("0")) {
+                            hasGt = true;
+                            node.getChildNodes().item(0).setTextContent(line.getGtText());
+                            System.out.println("changed "+node.getChildNodes().item(0).getNodeName()+" GT content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
+                        } else if (index.equals("1")) {
+                            node.getChildNodes().item(0).setTextContent(line.getOcrText());
+                            System.out.println("changed OCR content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
+                        }
+                    }
 
+
+                    if(!hasGt) {
+                        Element newTextEquiv = pageXml.createElement("TextEquiv");
+                        newTextEquiv.setAttribute("index", "0");
+                        Element newText = pageXml.createElement("Unicode");
+                        newText.appendChild(pageXml.createTextNode(line.getGtText()));
                         newTextEquiv.appendChild(newText);
                         xmlTextline.appendChild(newTextEquiv);
+
+                        System.out.println("added GT textline with id: "+xmlId);
                     }
                 }
 
