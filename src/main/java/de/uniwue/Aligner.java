@@ -23,11 +23,6 @@ public class Aligner {
 
 
     public static double calcSimilarity(String[] strings) {
-        /*
-    }
-        System.out.println(StringUtils.getLevenshteinDistance(strings[0],strings[1]));
-        System.out.println(strings[0].length());
-        */
         String longer = strings[0], shorter = strings[1];
         if (strings[0].length() < strings[1].length()) { // longer should always have greater length
             longer = strings[1]; shorter = strings[0];
@@ -117,21 +112,6 @@ public class Aligner {
         String[] result = new String[3];
 
         result[2] = highlight(alignedStrings[0],alignedStrings[1]);
-        //alignedStrings[0] = highlight(alignedStrings[0],alignedStrings[1]);
-        /*
-        //----------Testing Area----------------
-        System.out.println(ANSI_YELLOW + "\n### Normal alignment from Back: ###\n" + ANSI_RESET);
-        for (String line: alignedStrings) {
-            System.out.println(line);
-        }
-        System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + calcSimilarity(alignedStrings)*100.0 + "%" + ANSI_RESET);
-        System.out.println(ANSI_YELLOW+"\n\n### Reverse alignment: ###\n"+ANSI_RESET);
-        for (String line: rAlignedStrings) {
-            System.out.println(line);
-        }
-        System.out.println(ANSI_GREEN + "\nSimilarity (using Levenshtein Distance): " + calcSimilarity(rAlignedStrings)*100.0 + "%" + ANSI_RESET);
-        //----------Testing Area----------------
-        */
 
         int countBegin = countCharEnd(rAlignedStrings[0],symbol);
         int countEnd = countCharEnd(alignedStrings[0],symbol);
@@ -141,8 +121,6 @@ public class Aligner {
         alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
         result[0] = alignedStrings[0];
         result[1] = alignedStrings[1];
-        //alignedStrings = nwAlign(alignedStrings[0],alignedStrings[1]);
-        //alignedStrings[1] = alignedStrings[1].replaceAll("["+symbol+"]{1,}","");
         return result;
     }
 
@@ -161,8 +139,6 @@ public class Aligner {
 
         String[] alignedStrings = nwAlign(s1,s2);
 
-        //alignedStrings[0] = stripLines(alignedStrings[0]);
-        //alignedStrings[0] = alignedStrings[0].replaceAll("[-]{2,}","");
         int startIndex = s2.length()-(s1.length()+proximity);
         startIndex = (startIndex < 0) ? 0 : startIndex;
         String[] proxStrings = nwAlign(s1,s2.substring(startIndex));
@@ -170,11 +146,9 @@ public class Aligner {
         String[] rStrings = reverseStrings(new String[]{s1,s2});
         String[] rAlignedStrings = nwAlign(rStrings[0],rStrings[1]);
 
-
         int countBegin = countCharEnd(rAlignedStrings[0],'-');
         int countEnd = countCharEnd(alignedStrings[0],'-');
         alignedStrings[1] = trimGt(alignedStrings[1],countBegin,countEnd);
-
 
         proxStrings[0] = proxStrings[0].replaceAll("[-]{2,}","");
         return align(proxStrings[0],proxStrings[1]);
@@ -228,7 +202,6 @@ public class Aligner {
 
     public static String highlight(String ocr, String gt) {
         String hlOcr = "";
-
         for(int i = 0;  i < ocr.length() && i < gt.length(); i++) {
             if(ocr.charAt(i) == gt.charAt(i)) {
                 hlOcr += ANSI_GREEN + ocr.charAt(i) + ANSI_RESET;
@@ -236,7 +209,6 @@ public class Aligner {
                 hlOcr += ANSI_RED + ocr.charAt(i) + ANSI_RESET;
             }
         }
-
         return hlOcr;
     }
 }

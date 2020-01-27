@@ -7,10 +7,12 @@ public class Textline {
     private String ocrText;
     private String gtText;
     private double similarity;
+    private boolean unsureFlag;
 
     public Textline(String id, String ocrText) {
         this.id = id;
         this.ocrText = ocrText;
+        this.unsureFlag = false;
     }
 
     public void setId(String id) {
@@ -48,10 +50,16 @@ public class Textline {
             if (ocrText.length() < gtText.length()) { // longer should always have greater length
                 longer = gtText; shorter = ocrText;
             }
-            return (1.0)-(StringUtils.getLevenshteinDistance(gtText,ocrText))/(double)longer.length();
+            double sim = (1.0)-(StringUtils.getLevenshteinDistance(gtText,ocrText))/(double)longer.length();
+            unsureFlag = (sim < 0.5);
+            return sim;
         } else {
             System.out.println("OCRtext or GTtext was null");
             return 0;
         }
+    }
+
+    public boolean isSure() {
+        return !unsureFlag;
     }
 }

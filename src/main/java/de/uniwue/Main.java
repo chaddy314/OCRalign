@@ -15,6 +15,9 @@ public class Main {
     public static final String ANSI_GREEN = "\u001B[32m";
     public static final String ANSI_RED = "\u001B[31m";
     public static final String ANSI_PURPLE = "\u001B[35m";
+    protected static boolean overwrite =  true;
+    protected static boolean checkCertainty = false;
+    protected static boolean shortResult = false;
 
     enum Mode {
         LINE,
@@ -25,12 +28,17 @@ public class Main {
 
     public static void main(String[] args) {
 
-        boolean overwrite =  true;
+
         String ocrText = "";
         String gtText = "";
         String pathDir = "";
         Mode mode;
+        if(args.length < 1) {
+            printHelp();
+            return;
+        }
 
+        // Determines Main Mode
         switch (args[0]) {
             case "-l":  mode = Mode.LINE;
                         ocrText = args[1];
@@ -41,6 +49,9 @@ public class Main {
                         ocrText = args[1];
                         gtText = args[2];
                         overwrite = !(args.length == 4)&&args[3].equals("-s");
+                        //-----
+                        if(!overwrite){System.out.println("SAFEMODE "+ANSI_GREEN+"ON"+ANSI_RESET);}
+                        //-----
                         checkXmlMode(ocrText,gtText);
                         break;
             case "-b":  mode = Mode.BATCH;
@@ -48,16 +59,22 @@ public class Main {
                         checkBatchMode(pathDir);
                         break;
             case "-h":  mode = Mode.HELP;
-                        return;
+                        break;
             default:
                 mode = Mode.HELP;
                 System.out.println("Use flag -h for help");
         }
+        //Check for other flags in arguments
+        for(int i = 0; i < args.length; i++) {
+            if (args[i].equals("-s")) {overwrite = false;}
+            if (args[i].equals("-c")) {checkCertainty = true;}
+            if (args[i].equals("-a")) {shortResult = true;}
+        }
 
         switch (mode) {
             case LINE:  doLineMode(ocrText,gtText); break;
-            case XML:   doXmlMode(ocrText,gtText); break;
-            case BATCH: doBatchMode(pathDir); break;
+            case XML:   doXmlMode(ocrText,gtText,overwrite); break;
+            case BATCH: doBatchMode(pathDir,overwrite); break;
             case HELP:  printHelp(); break;
             default:    System.out.println("You should not be here");
         }
@@ -220,7 +237,7 @@ public class Main {
         }
     }
 
-    public static void doXmlMode(String xmlFile, String textFile) {
+    public static void doXmlMode(String xmlFile, String textFile, boolean overwrite) {
         try {
 
             int gtCount = countLinesNew(textFile);
@@ -246,26 +263,29 @@ public class Main {
                     String[] result = Aligner.align(ocrText,gtText);
                     line.setLines(result);
 
-                    System.out.println("\n\nTextLine ID: "+line.getId()+"\n");
-                    System.out.println("Testing:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
-                    System.out.println();
-                    System.out.println("Ocr aligned:\t"+result[2]);
-                    System.out.println();
-                    System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
-                    System.out.println();
-                    System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET);
-                    System.out.println("\nSimilarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
+                    System.out.println("\n\nTextLine ID: "+line.getId());
+
+                    if(!shortResult) {
+                        System.out.println("\nTesting:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
+                        System.out.println();
+                        System.out.println("Ocr aligned:\t"+result[2]);
+                        System.out.println();
+                        System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
+                        System.out.println();
+                        System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET + "\n");
+                    }
+                    System.out.println("Similarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
                     gtText = reader.readLine();
                 }
             }
             reader.close();
-            pageXML.updateTextlines(lines);
+            if(overwrite) {pageXML.updateTextlines(lines);}
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public static void doBatchMode(String pathDir) {
+    public static void doBatchMode(String pathDir, boolean overwrite) {
         //TODO
     }
 }

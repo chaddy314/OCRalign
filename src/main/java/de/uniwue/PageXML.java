@@ -30,8 +30,6 @@ public class PageXML {
         try {
             pageXml = parseXML(path);
             this.rootElement = pageXml.getDocumentElement();
-            //System.out.println(rootElement.getTagName());
-
             this.textlines = listOcrLines();
         } catch (Exception e) {
             e.printStackTrace();
@@ -40,7 +38,6 @@ public class PageXML {
 
     public List<Textline> listOcrLines() {
         List<Textline> ocrLines = new LinkedList<Textline>();
-        //System.out.println(rootElement.getChildNodes().item(1).getNodeName());
         NodeList nList = rootElement.getChildNodes();
         NodeList cList = null;
         for(int i = 0; i < nList.getLength() ;i++) {
@@ -56,8 +53,6 @@ public class PageXML {
                 if(element.getAttribute("type").equals("paragraph")) {
                     pList.add(element);
                 }
-                //System.out.println(element.getAttribute("type"));
-                //System.out.println(element.getTagName());
             }
 
             if(pList.size() != 0) {
@@ -66,7 +61,6 @@ public class PageXML {
                 for (Element  element: pList) {
                     tList = element.getElementsByTagName("TextLine");
                     for(int i = 0; i< tList.getLength(); i++) {
-                        //System.out.println(tList.item(i).getNodeName());
                         textElementList.add((Element)tList.item(i));
                     }
                 }
@@ -79,7 +73,7 @@ public class PageXML {
                         Element element = (Element) anotherList.item(i);
                         //System.out.println(element.getTagName());
                         //System.out.println();
-                        Element unicode = (Element) element.getChildNodes().item(0);
+                        //Element unicode = (Element) element.getChildNodes().item(0);
                         if(element.getTagName() == "TextEquiv" && element.getAttribute("index").equals("1")) {
                             //System.out.println(element.getChildNodes().item(0).getTextContent());
                             ocrLines.add(new Textline(id,element.getChildNodes().item(0).getTextContent()));
@@ -109,7 +103,6 @@ public class PageXML {
     public void updateTextlines(List<Textline> lines) {
         this.textlines = lines;
         List<Textline> ocrLines = new LinkedList<Textline>();
-        //System.out.println(rootElement.getChildNodes().item(1).getNodeName());
         NodeList nList = rootElement.getChildNodes();
         NodeList cList = null;
         Element e = null;
@@ -126,8 +119,6 @@ public class PageXML {
                 if(element.getAttribute("type").equals("paragraph")) {
                     pList.add(element);
                 }
-                //System.out.println(element.getAttribute("type"));
-                //System.out.println(element.getTagName());
             }
 
             if(pList.size() != 0) {
@@ -136,7 +127,6 @@ public class PageXML {
                 for (Element  element: pList) {
                     tList = element.getElementsByTagName("TextLine");
                     for(int i = 0; i< tList.getLength(); i++) {
-                        //System.out.println(tList.item(i).getNodeName());
                         textElementList.add((Element)tList.item(i));
                     }
                 }
@@ -145,31 +135,32 @@ public class PageXML {
                     boolean hasGt = false;
                     String xmlId = xmlTextline.getAttribute("id");
                     Textline line = getTextLineByID(xmlId);
-                    NodeList anotherList = xmlTextline.getChildNodes();
-
-                    for(int i = 0; i<anotherList.getLength(); i++) {
-                        Element node = (Element) anotherList.item(i);
-                        String index = node.getAttribute("index");
-                        if(index.equals("0")) {
-                            hasGt = true;
-                            node.getChildNodes().item(0).setTextContent(line.getGtText());
-                            System.out.println("changed "+node.getChildNodes().item(0).getNodeName()+" GT content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
-                        } else if (index.equals("1")) {
-                            node.getChildNodes().item(0).setTextContent(line.getOcrText());
-                            System.out.println("changed OCR content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
+                    if(Main.checkCertainty && !line.isSure()) {
+                        System.out.println("Not updating line("+xmlId+") because similarity was " + line.calcSim()*100+"%");
+                    } else {
+                        NodeList anotherList = xmlTextline.getChildNodes();
+                        for(int i = 0; i<anotherList.getLength(); i++) {
+                            Element node = (Element) anotherList.item(i);
+                            String index = node.getAttribute("index");
+                            if(index.equals("0")) {
+                                hasGt = true;
+                                node.getChildNodes().item(0).setTextContent(line.getGtText());
+                                System.out.println("changed "+node.getChildNodes().item(0).getNodeName()+" GT content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
+                            } else if (index.equals("1")) {
+                                node.getChildNodes().item(0).setTextContent(line.getOcrText());
+                                System.out.println("changed OCR content of "+xmlId+" to"+node.getChildNodes().item(0).getTextContent());
+                            }
                         }
-                    }
-
-
-                    if(!hasGt) {
-                        Element newTextEquiv = pageXml.createElement("TextEquiv");
-                        newTextEquiv.setAttribute("index", "0");
-                        Element newText = pageXml.createElement("Unicode");
-                        newText.appendChild(pageXml.createTextNode(line.getGtText()));
-                        newTextEquiv.appendChild(newText);
-                        xmlTextline.appendChild(newTextEquiv);
-
-                        System.out.println("added GT textline with id: "+xmlId);
+                        //make new GT child and append
+                        if(!hasGt) {
+                            Element newTextEquiv = pageXml.createElement("TextEquiv");
+                            newTextEquiv.setAttribute("index", "0");
+                            Element newText = pageXml.createElement("Unicode");
+                            newText.appendChild(pageXml.createTextNode(line.getGtText()));
+                            newTextEquiv.appendChild(newText);
+                            xmlTextline.appendChild(newTextEquiv);
+                            System.out.println("added GT textline with id: "+xmlId);
+                        }
                     }
                 }
 
