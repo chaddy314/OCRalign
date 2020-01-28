@@ -6,7 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.Normalizer;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import org.apache.commons.cli.*;
 
 public class Main {
     public static final String ANSI_RESET = "\u001B[0m";
@@ -18,114 +22,62 @@ public class Main {
     protected static boolean overwrite =  true;
     protected static boolean checkCertainty = false;
     protected static boolean shortResult = false;
-
-    enum Mode {
-        LINE,
-        XML,
-        BATCH,
-        HELP
-    }
+    protected static double certainty = 0.5;
+    protected static boolean insert = false;
+    protected static boolean wodiak = false;
+    protected static boolean isBatch = false;
+    protected static double simTotal = 0.0;
+    protected static int lineCount = 0;
 
     public static void main(String[] args) {
 
-
-        String ocrText = "";
-        String gtText = "";
-        String pathDir = "";
-        Mode mode;
-        if(args.length < 1) {
-            printHelp();
-            return;
+        CommandLineParser parser = new DefaultParser();
+        Options options = getOptions();
+        try {
+            CommandLine line = parser.parse(options,args);
+            execute(line,options);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        // Determines Main Mode
-        switch (args[0]) {
-            case "-l":  mode = Mode.LINE;
-                        ocrText = args[1];
-                        gtText = args[2];
-                        checkLineMode(ocrText,gtText);
-                        break;
-            case "-x":  mode = Mode.XML;
-                        ocrText = args[1];
-                        gtText = args[2];
-                        overwrite = !(args.length == 4)&&args[3].equals("-s");
-                        //-----
-                        if(!overwrite){System.out.println("SAFEMODE "+ANSI_GREEN+"ON"+ANSI_RESET);}
-                        //-----
-                        checkXmlMode(ocrText,gtText);
-                        break;
-            case "-b":  mode = Mode.BATCH;
-                        pathDir = args[1];
-                        checkBatchMode(pathDir);
-                        break;
-            case "-h":  mode = Mode.HELP;
-                        break;
-            default:
-                mode = Mode.HELP;
-                System.out.println("Use flag -h for help");
-        }
-        //Check for other flags in arguments
-        for(int i = 0; i < args.length; i++) {
-            if (args[i].equals("-s")) {overwrite = false;}
-            if (args[i].equals("-c")) {checkCertainty = true;}
-            if (args[i].equals("-a")) {shortResult = true;}
-        }
+    }
 
-        switch (mode) {
-            case LINE:  doLineMode(ocrText,gtText); break;
-            case XML:   doXmlMode(ocrText,gtText,overwrite); break;
-            case BATCH: doBatchMode(pathDir,overwrite); break;
-            case HELP:  printHelp(); break;
-            default:    System.out.println("You should not be here");
-        }
-
-	    /*if(args[0].endsWith(".xml")) {
-            XML_MODE = true;
-        } else {
-	        ocrText = args[0];
-            gtText = args[1];
-        }*/
-
-	   /*if(XML_MODE) {
-	        String textFile = args[1];
-	        String xmlFile = args[0];
-
-	        if(args.length == 3 && args[2].equals("prox")) {
-	            try {
-                    gtText = Files.readString(Paths.get(textFile));
-
-                    PageXML pageXML = new PageXML(xmlFile);
-                    List<Textline> lines = pageXML.listOcrLines();
-
-                    for(int i = lines.size() -1; i >= 0 ; i--) {
-                        ocrText = lines.get(i).getOcrText();
-                        gtText = lines.get(i).getOcrText();
-                        ocrText = Normalizer.normalize(ocrText, Normalizer.Form.NFKC);
-                        gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
-
-                        String[] proxResult = Aligner.proxAlign(ocrText,gtText, (int) Math.min(10,i));
-                        System.out.println("\n\nTextLine ID: "+lines.get(i).getId()+"\n");
-                        System.out.println("Testing:" + ANSI_CYAN + ocrText + ANSI_RESET);
-                        System.out.println();
-                        System.out.println(ANSI_RED + proxResult[0] + ANSI_RESET);
-                        System.out.println();
-                        System.out.println(ANSI_GREEN + proxResult[1] + ANSI_RESET);
-                        System.out.println("\nSimilarity (using Levenshtein Distance): " + Aligner.calcSimilarity(proxResult)*100.0 + "%");
-                        gtText = Aligner.cutGroundTruth(gtText,ocrText);
-                    }
-
-                    System.out.println("\nRest Ground Truth:\n"+gtText);
-                } catch (Exception e) {
-	                e.printStackTrace();
-                }
-            } else {
-
+    private static void execute(CommandLine line, Options options) throws InterruptedException {
+        if(line.hasOption("i")) { insert = true; System.out.println("INSERTMODE  "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("s")) { overwrite = false; System.out.println("SAFEMODE  "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("a")) { shortResult = true; System.out.println("SHORTMODE "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("w")) {wodiak = true; System.out.println("WODIAK "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("c")) {
+            checkCertainty = true;
+            System.out.println("CHECKMODE "+ANSI_GREEN+"ON"+ANSI_RESET);
+            if(line.getOptionValue("c") != null) {
+                certainty = Double.parseDouble(line.getOptionValue("c","0.5"));
+                System.out.println("c is now " + certainty);
             }
+        }
+        String ocr,gt,dir;
+        if(line.hasOption("l") && !line.hasOption("x") && !line.hasOption("b") && !line.hasOption("i")) {
+            System.out.println("line mode");
+            ocr = line.getOptionValues("l")[0];
+            gt = line.getOptionValues("l")[1];
+            if(checkLineMode(ocr,gt)) { doLineMode(ocr,gt); }
+        } else if(line.hasOption("x") && !line.hasOption("l") && !line.hasOption("b") && !line.hasOption("i")) {
+            System.out.println("xml mode");
+            ocr = line.getOptionValues("x")[0];
+            gt = line.getOptionValues("x")[1];
+            if(checkXmlMode(ocr,gt)) { doXmlMode(ocr,gt, overwrite); }
+        } else if(line.hasOption("b")  && !line.hasOption("i")) {
+            System.out.println("batch mode");
+            isBatch = true;
+            dir = line.getOptionValue("b");
+            Thread.sleep(2000);
+            if(checkBatchMode(dir)){ System.out.println("starting...");doBatchMode(dir,overwrite); }
+        } else{
+                HelpFormatter formatter = new HelpFormatter();
+                formatter.setOptionComparator(null);
+                formatter.printHelp("ocralign",options,true);
+        }
 
-        } else {
-
-
-        }*/
     }
 
     public static int countLinesNew(String filename) throws IOException {
@@ -167,14 +119,6 @@ public class Main {
         }
     }
 
-    public static void printHelp() {
-        System.out.println("usage:");
-        System.out.println();
-        System.out.println("LINE_MODE: \t[-l <string> <string>]");
-        System.out.println("XML_MODE: \t[-x xml-path=<path> gt-path<path>] [-s --safemode]");
-        System.out.println("BATCH_MODE:\t[-b <path>] [-s --safemode]");
-    }
-
     public static boolean checkLineMode(String s1, String s2) {
         if(s1.isEmpty() || s2.isEmpty()) {
             System.out.println("ERROR: There was only one string");
@@ -201,13 +145,11 @@ public class Main {
     }
 
     public static boolean checkBatchMode(String folder) {
-        Path path = Paths.get(folder);
-        if(Files.exists(path)) {
-            return true;
-        } else {
-            System.out.println("ERROR: Unknown File or Path");
+        File dir = new File(folder);
+        if(!dir.isDirectory()) {
+            System.out.println("Not a Directory");
             return false;
-        }
+        } else {return true;}
     }
 
     public static void doLineMode(String ocrText, String gtText) {
@@ -239,7 +181,6 @@ public class Main {
 
     public static void doXmlMode(String xmlFile, String textFile, boolean overwrite) {
         try {
-
             int gtCount = countLinesNew(textFile);
             PageXML pageXML = new PageXML(xmlFile);
             List<Textline> lines = pageXML.listOcrLines();
@@ -256,25 +197,30 @@ public class Main {
             String gtText = reader.readLine();
             for (Textline line: lines) {
                 if(gtText != null) {
-                    ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
-                    gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
+                    if(insert) {
+                        //TODO
+                    } else {
+                        ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
+                        gtText = Normalizer.normalize(gtText,Normalizer.Form.NFKC);
 
-                    //String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
-                    String[] result = Aligner.align(ocrText,gtText);
-                    line.setLines(result);
+                        //String[] oldResult = Aligner.oldAlign(line.getOcrText(),gtText);
+                        String[] result = Aligner.align(ocrText,gtText);
+                        line.setLines(result);
 
-                    System.out.println("\n\nTextLine ID: "+line.getId());
+                        System.out.println("\n\nTextLine ID: "+line.getId());
 
-                    if(!shortResult) {
-                        System.out.println("\nTesting:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
-                        System.out.println();
-                        System.out.println("Ocr aligned:\t"+result[2]);
-                        System.out.println();
-                        System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
-                        System.out.println();
-                        System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET + "\n");
+                        if(!shortResult) {
+                            System.out.println("\nTesting:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
+                            System.out.println();
+                            System.out.println("Ocr aligned:\t"+result[2]);
+                            System.out.println();
+                            System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
+                            System.out.println();
+                            System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET + "\n");
+                        }
+                        System.out.println("Similarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
+                        if(isBatch) { addSim(line.calcSim());}
                     }
-                    System.out.println("Similarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
                     gtText = reader.readLine();
                 }
             }
@@ -286,6 +232,92 @@ public class Main {
     }
 
     public static void doBatchMode(String pathDir, boolean overwrite) {
-        //TODO
+        File dir = new File(pathDir);
+        if(!dir.isDirectory()) {
+            System.out.println("Not a Directory");
+            return;
+        }
+        File[] xmlInDir = dir.listFiles((d, name) -> name.endsWith(".xml"));
+        String xmlEnding = ".gt.txt";
+        File[] txtInDir;
+
+        if(wodiak) { txtInDir = dir.listFiles((d, name) -> name.endsWith(".gt.wodiak.txt"));}
+        else { txtInDir = dir.listFiles((d, name) -> name.endsWith(".gt.txt")); }
+
+        List<File> sortedXml = Arrays.stream(xmlInDir)
+                .sorted((f1,f2) -> f1.getName().compareTo(f2.getName())).collect(Collectors.toList());
+        List<File> sortedTxt = Arrays.stream(txtInDir)
+                .sorted((f1,f2) -> f1.getName().compareTo(f2.getName())).collect(Collectors.toList());
+        if(sortedXml.size() == 0 || sortedTxt.size() == 0) {
+            System.out.println("no XML or TXT files in dir");
+            return;
+        }
+        try {
+            for (File xml : sortedXml) {
+                for (File gt : sortedTxt) {
+                    //System.out.println("comparing"+xml.getCanonicalPath()+" with "+gt.getCanonicalPath());
+                    String cutXml = xml.getAbsolutePath().replaceAll("(.gt.wodiak.txt|.gt.txt|.xml)", "");
+                    String cutTxt = gt.getAbsolutePath().replaceAll("(.gt.wodiak.txt|.gt.txt|.xml)","");
+                    //System.out.println(cutXml + "\t" + cutTxt);
+                    if (cutXml.equals(cutTxt)) {
+                        System.out.println("comparing"+xml.getCanonicalPath()+" with "+gt.getCanonicalPath());
+                        doXmlMode(xml.getAbsolutePath(),gt.getAbsolutePath(),overwrite);
+                    }
+                }
+            }
+
+            System.out.println("\nOverall Similarity: "+ getOverallSim()*100.0);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static Options getOptions() {
+        Options options = new Options();
+        Option lineMode       = Option.builder("l").argName("ocrdata> <gtdata")
+                                                        .hasArgs()
+                                                        .numberOfArgs(2)
+                                                        .longOpt("line-mode")
+                                                        .desc("aligns two strings")
+                                                        .build();
+        Option xmlMode        = Option.builder("x").argName("pagexml> <gt.txt")
+                                                        .hasArgs()
+                                                        .numberOfArgs(2)
+                                                        .longOpt("xml-mode")
+                                                        .desc("aligns every line from pageXml to corresponding gt.txt")
+                                                        .build();
+        Option batchMode      = Option.builder("b").argName("folder")
+                                                        .hasArg()
+                                                        .longOpt("batch-mode")
+                                                        .desc("Aligns every file in folder")
+                                                        .build();
+
+        OptionGroup optionGroup = new OptionGroup();
+        optionGroup.isRequired();
+        optionGroup.addOption(lineMode);
+        optionGroup.addOption(xmlMode);
+        optionGroup.addOption(batchMode);
+        options.addOptionGroup(optionGroup);
+
+        options.addOption("i","insert",false,"[OPTIONAL] writes every gt line in xml line");
+        options.addOption("s","safemode",false, "[OPTIONAL] Only reads XML file(s)");
+        options.addOption("a","shortmode",false,"[OPTIONAL] Abbreviates output");
+        Option check          = Option.builder("c").argName("certainty")
+                                                        .longOpt("check")
+                                                        .valueSeparator()
+                                                        .desc("[OPTIONAL] Only writes if similarity > c (default:0.5)")
+                                                        .build();
+        options.addOption(check);
+        options.addOption("w","wodiak",false,"[OPTIONAL] use gt.wodiak.txt");
+        return options;
+    }
+
+    private static void addSim(double sim) {
+        lineCount++;
+        simTotal += sim;
+    }
+
+    private static double getOverallSim() {
+        return (double)simTotal/lineCount;
     }
 }
