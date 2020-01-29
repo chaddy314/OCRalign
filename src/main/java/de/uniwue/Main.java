@@ -28,6 +28,10 @@ public class Main {
     protected static boolean isBatch = false;
     protected static double simTotal = 0.0;
     protected static int lineCount = 0;
+    protected static int offByOneCount = 0;
+    protected static int warningPages = 0;
+    protected static String offByOnePages = "";
+    protected static String falsePages = "";
 
     public static void main(String[] args) {
 
@@ -81,7 +85,7 @@ public class Main {
     }
 
     public static int countLinesNew(String filename) throws IOException {
-        InputStream is = new BufferedInputStream(new FileInputStream(filename));
+        /*InputStream is = new BufferedInputStream(new FileInputStream(filename));
         try {
             byte[] c = new byte[1024];
 
@@ -116,7 +120,27 @@ public class Main {
             return count == 0 ? 1 : count;
         } finally {
             is.close();
+        }*/
+        FileReader fileReader = null;
+        LineNumberReader lnr = null;
+        String str = "";
+        int i = 0;
+
+
+        try {
+            fileReader = new FileReader(filename);
+            lnr = new LineNumberReader(fileReader);
+            str = lnr.readLine();
+            while(str!=null && !str.equals("")) {
+                i++;
+                str = lnr.readLine();
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        finally {
+            if(fileReader!=null) { fileReader.close(); }
+            if(lnr!=null) { lnr.close(); }
         }
+        return i;
     }
 
     public static boolean checkLineMode(String s1, String s2) {
@@ -129,7 +153,7 @@ public class Main {
     }
 
     public static boolean checkXmlMode(String pathXml, String pathGt) {
-        if(pathXml.endsWith(".xml") && pathGt.endsWith("gt.txt")) {
+        if(pathXml.endsWith(".xml") && (pathGt.endsWith("gt.txt")|| pathGt.endsWith("gt.wodiak.txt"))) {
             Path path1 = Paths.get(pathXml);
             Path path2 = Paths.get(pathGt);
             if(Files.exists(path1) && Files.exists(path2)) {
@@ -189,6 +213,15 @@ public class Main {
                 System.out.println("numbers of lines differed");
                 System.out.println("No. of  gt liens was: " + gtCount);
                 System.out.println("No. of ocr lines was: " + ocrCount);
+                if(isBatch) { textFile = ("\n" + textFile.substring(textFile.lastIndexOf(File.separator),textFile.length())); }
+
+                if(Math.abs(ocrCount-gtCount) == 1) {
+                    offByOneCount++;
+                    offByOnePages += textFile;
+                } else {
+                    falsePages += textFile + "ocrcount = " + ocrCount + "\tgtcount: " + gtCount;
+                }
+
                 return;
             }
             BufferedReader reader;
@@ -207,18 +240,20 @@ public class Main {
                         String[] result = Aligner.align(ocrText,gtText);
                         line.setLines(result);
 
-                        System.out.println("\n\nTextLine ID: "+line.getId());
 
-                        if(!shortResult) {
+
+                        if(!shortResult || certainty >= line.calcSim()) {
+                            System.out.println("\n\nTextLine ID: "+line.getId());
                             System.out.println("\nTesting:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
                             System.out.println();
-                            System.out.println("Ocr aligned:\t"+result[2]);
+                            System.out.println("Ocr aligned:\t" + result[2]);
                             System.out.println();
-                            System.out.println("GT aligned:\t"+ANSI_GREEN + result[1]+ ANSI_RESET);
+                            System.out.println("GT aligned:\t" + ANSI_GREEN + result[1] + ANSI_RESET);
                             System.out.println();
-                            System.out.println("GT Line:\t"+ ANSI_CYAN + gtText + ANSI_RESET + "\n");
+                            System.out.println("GT Line:\t" + ANSI_CYAN + gtText + ANSI_RESET + "\n");
+
+                            System.out.println("Similarity (using Levenshtein Distance): " + ANSI_PURPLE + String.format("%.2f", line.calcSim() * 100) + "%" + ANSI_RESET);
                         }
-                        System.out.println("Similarity (using Levenshtein Distance): " +ANSI_PURPLE +  String.format("%.2f", line.calcSim()*100) + "%" + ANSI_RESET);
                         if(isBatch) { addSim(line.calcSim());}
                     }
                     gtText = reader.readLine();
@@ -260,12 +295,21 @@ public class Main {
                     String cutTxt = gt.getAbsolutePath().replaceAll("(.gt.wodiak.txt|.gt.txt|.xml)","");
                     //System.out.println(cutXml + "\t" + cutTxt);
                     if (cutXml.equals(cutTxt)) {
-                        System.out.println("comparing"+xml.getCanonicalPath()+" with "+gt.getCanonicalPath());
+                        String xmlFilename = xml.getCanonicalPath().substring(xml.getCanonicalPath().lastIndexOf(File.separator),xml.getCanonicalPath().length());
+                        String gtFilename = gt.getCanonicalPath().substring(gt.getCanonicalPath().lastIndexOf(File.separator),gt.getCanonicalPath().length());
+                        System.out.println("comparing"+xmlFilename+" with "+gtFilename);
                         doXmlMode(xml.getAbsolutePath(),gt.getAbsolutePath(),overwrite);
                     }
                 }
             }
-
+            if(offByOneCount > 0) {
+                System.out.println(offByOnePages);
+                System.out.println("Off by One line count was: " + offByOneCount);
+                System.out.println("\n FALSE PAGES:");
+                System.out.println(falsePages);
+            }
+            System.out.println("\n FALSE PAGES:");
+            System.out.println(falsePages);
             System.out.println("\nOverall Similarity: "+ getOverallSim()*100.0);
         } catch (IOException e) {
             e.printStackTrace();
