@@ -250,9 +250,9 @@ public class Main {
                             System.out.println();
                             System.out.println("GT aligned:\t" + ANSI_GREEN + result[1] + ANSI_RESET);
                             System.out.println();
-                            System.out.println("GT Line:\t" + ANSI_CYAN + gtText + ANSI_RESET + "\n");
+                            //System.out.println("GT Line:\t" + ANSI_CYAN + gtText + ANSI_RESET + "\n");
 
-                            System.out.println("Similarity (using Levenshtein Distance): " + ANSI_PURPLE + String.format("%.2f", line.calcSim() * 100) + "%" + ANSI_RESET);
+                            System.out.println("Similarity (using Levenshtein Distance): " + ANSI_CYAN + String.format("%.2f", line.calcSim() * 100) + "%" + ANSI_RESET);
                         }
                         if(isBatch) { addSim(line.calcSim());}
                     }
