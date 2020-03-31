@@ -513,7 +513,7 @@ public class Main {
         } else {
             String lines[] = output.split("Hit:");
             lines = lines[1].split("at pos:");
-            return lines[0].replaceAll("\\\\r?\\\\n\"", "");
+            return lines[0].replaceAll("\n", "");
         }
     }
 
