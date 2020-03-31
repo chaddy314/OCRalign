@@ -8,6 +8,8 @@ import java.nio.file.Paths;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.stream.Collectors;
 
 import org.apache.commons.cli.*;
@@ -26,12 +28,14 @@ public class Main {
     protected static boolean insert = false;
     protected static boolean wodiak = false;
     protected static boolean isBatch = false;
+    protected static boolean noconfirm = false;
     protected static double simTotal = 0.0;
     protected static int lineCount = 0;
     protected static int offByOneCount = 0;
     protected static int warningPages = 0;
     protected static String offByOnePages = "";
     protected static String falsePages = "";
+    protected static int ngram = 5;
 
     public static void main(String[] args) {
 
@@ -48,9 +52,10 @@ public class Main {
 
     private static void execute(CommandLine line, Options options) throws InterruptedException {
         if(line.hasOption("i")) { insert = true; System.out.println("INSERTMODE  "+ANSI_GREEN+"ON"+ANSI_RESET);}
-        if(line.hasOption("s")) { overwrite = false; System.out.println("SAFEMODE  "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("sm")) { overwrite = false; System.out.println("SAFEMODE  "+ANSI_GREEN+"ON"+ANSI_RESET);}
         if(line.hasOption("a")) { shortResult = true; System.out.println("SHORTMODE "+ANSI_GREEN+"ON"+ANSI_RESET);}
         if(line.hasOption("w")) {wodiak = true; System.out.println("WODIAK "+ANSI_GREEN+"ON"+ANSI_RESET);}
+        if(line.hasOption("y")) {noconfirm = true; System.out.println("NO-CONFIRM "+ANSI_GREEN+"ON"+ANSI_RESET);}
         if(line.hasOption("c")) {
             checkCertainty = true;
             System.out.println("CHECKMODE "+ANSI_GREEN+"ON"+ANSI_RESET);
@@ -59,24 +64,51 @@ public class Main {
                 System.out.println("c is now " + certainty);
             }
         }
+        if(line.hasOption("n")) {
+            if(line.getOptionValue("c") != null) {
+                ngram = Integer.parseInt(line.getOptionValue("n","5"));
+                System.out.println("N-GRAM: n = "+ANSI_GREEN+ngram+ANSI_RESET+"\t (recommended: n = 5)");
+            }
+        }
         String ocr,gt,dir;
-        if(line.hasOption("l") && !line.hasOption("x") && !line.hasOption("b") && !line.hasOption("i")) {
+        if(line.hasOption("l")
+                && !line.hasOption("x")
+                && !line.hasOption("b")
+                && !line.hasOption("i")
+                && !line.hasOption("s")) {
             System.out.println("line mode");
             ocr = line.getOptionValues("l")[0];
             gt = line.getOptionValues("l")[1];
             if(checkLineMode(ocr,gt)) { doLineMode(ocr,gt); }
-        } else if(line.hasOption("x") && !line.hasOption("l") && !line.hasOption("b") && !line.hasOption("i")) {
+        } else if(line.hasOption("x")
+                && !line.hasOption("l")
+                && !line.hasOption("b")
+                && !line.hasOption("i")
+                && !line.hasOption("s")) {
             System.out.println("xml mode");
             ocr = line.getOptionValues("x")[0];
             gt = line.getOptionValues("x")[1];
             if(checkXmlMode(ocr,gt)) { doXmlMode(ocr,gt, overwrite); }
-        } else if(line.hasOption("b")  && !line.hasOption("i")) {
+        } else if(line.hasOption("b")
+                && !line.hasOption("i")
+                && !line.hasOption("l")
+                && !line.hasOption("x")
+                && !line.hasOption("s")) {
             System.out.println("batch mode");
             isBatch = true;
             dir = line.getOptionValue("b");
             Thread.sleep(2000);
             if(checkBatchMode(dir)){ System.out.println("starting...");doBatchMode(dir,overwrite); }
-        } else{
+        } else if(!line.hasOption("b")
+                && !line.hasOption("i")
+                && !line.hasOption("l")
+                && !line.hasOption("x")
+                && line.hasOption("s")) {
+            System.out.println("Search Mode");
+            ocr = line.getOptionValues("s")[0];
+            dir = line.getOptionValues("s")[1];
+            if(checkSearchMode(ocr,dir)){ System.out.println("starting...");doSearchMode(ocr,dir,noconfirm); }
+        }else{
                 HelpFormatter formatter = new HelpFormatter();
                 formatter.setOptionComparator(null);
                 formatter.printHelp("ocralign",options,true);
@@ -174,6 +206,29 @@ public class Main {
             System.out.println("Not a Directory");
             return false;
         } else {return true;}
+    }
+
+    public static boolean checkSearchMode(String pathXml, String pathCorpus) {
+        File corpusFolder = new File(pathCorpus);
+        File[] txtInDir = corpusFolder.listFiles((d, name) -> name.endsWith(".txt"));
+        if(pathXml.endsWith(".xml") && corpusFolder.isDirectory()) {
+            Path path1 = Paths.get(pathXml);
+            Path path2 = Paths.get(pathCorpus);
+            if(Files.exists(path1) && Files.exists(path2)) {
+                if(txtInDir.length !=0) {
+                    return true;
+                } else {
+                    System.out.println("Directory has to contain at least one text file");
+                    return false;
+                }
+            } else {
+                System.out.println("ERROR: Unknown File or Path");
+                return false;
+            }
+        } else {
+            System.out.println("ERROR: First file has to end with .xml and second file hast to be a directory");
+            return false;
+        }
     }
 
     public static void doLineMode(String ocrText, String gtText) {
@@ -316,6 +371,69 @@ public class Main {
         }
     }
 
+    public static void doSearchMode(String xmlFile, String pathDir, boolean noconfirm) {
+        File dir = new File(pathDir);
+        File[] txtInDir = dir.listFiles((d, name) -> name.endsWith(".txt"));
+
+        List<File> sortedTxt = Arrays.stream(txtInDir)
+                .sorted((f1,f2) -> f1.getName().compareTo(f2.getName())).collect(Collectors.toList());
+        try {
+            PageXML pageXML = new PageXML(xmlFile);
+            List<Textline> lines = pageXML.listOcrLines();
+            Scanner in = new Scanner(System.in);
+            String input = "";
+            for (Textline line: lines) {
+                String ocrText = Normalizer.normalize(line.getOcrText(), Normalizer.Form.NFKC);
+                String command = buildCommand(ocrText,pathDir,ngram);
+                ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", command);
+
+                Process p = pb.start();
+                String output = loadStream(p.getInputStream());
+                String error = loadStream(p.getErrorStream());
+                int rc = p.waitFor();
+                System.out.println("Process ended with rc=" + rc);
+                System.out.println(ANSI_GREEN+"\nStandard Output:\n"+ANSI_RESET);
+                System.out.println(output);
+                if(!error.equals("")) {
+                    System.out.println("\nStandard Error:\n");
+                    System.out.println(error);
+                }
+
+                if(!noconfirm) {
+                    Boolean accepted = false;
+                    while(!accepted) {
+                        System.out.println("Confirm? Type: y(es) or n(o) and press Enter");
+                        input = in.nextLine();
+                        if(input.equals("y") || input.equals("yes")) {
+                            accepted = true;
+                            line = generateOutput(ocrText,retHit(output),line);
+
+                        } else if(input.equals("n") || input.equals("no")) {
+                            accepted = true;
+                        } else {
+                            System.out.println("Please type y(es) or n(o)");
+                        }
+                    }
+                } else {
+                    line = generateOutput(ocrText,retHit(output),line);
+                }
+            }
+
+            if(overwrite) {pageXML.updateTextlines(lines);}
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String loadStream(InputStream s) throws Exception {
+        BufferedReader br = new BufferedReader(new InputStreamReader(s));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null)
+            sb.append(line).append("\n");
+        return sb.toString();
+    }
+
     private static Options getOptions() {
         Options options = new Options();
         Option lineMode       = Option.builder("l").argName("ocrdata> <gtdata")
@@ -335,22 +453,35 @@ public class Main {
                                                         .longOpt("batch-mode")
                                                         .desc("Aligns every file in folder")
                                                         .build();
-
+        Option searchMode     = Option.builder("s").argName("pagexml> <corpus folder")
+                                                        .hasArgs()
+                                                        .numberOfArgs(2)
+                                                        .longOpt("search-mode")
+                                                        .desc("searches every line of xml in specified corpus folder")
+                                                        .build();
         OptionGroup optionGroup = new OptionGroup();
         optionGroup.isRequired();
         optionGroup.addOption(lineMode);
         optionGroup.addOption(xmlMode);
         optionGroup.addOption(batchMode);
+        optionGroup.addOption(searchMode);
         options.addOptionGroup(optionGroup);
 
         options.addOption("i","insert",false,"[OPTIONAL] writes every gt line in xml line");
-        options.addOption("s","safemode",false, "[OPTIONAL] Only reads XML file(s)");
+        options.addOption("sm","safemode",false, "[OPTIONAL] Only reads XML file(s)");
         options.addOption("a","shortmode",false,"[OPTIONAL] Abbreviates output");
+        options.addOption("y","no-confirm",false,"[OPTIONAL] Automatically confirms and writes every line to xml");
         Option check          = Option.builder("c").argName("certainty")
                                                         .longOpt("check")
                                                         .valueSeparator()
                                                         .desc("[OPTIONAL] Only writes if similarity > c (default:0.5)")
                                                         .build();
+        Option ngram          = Option.builder("n").argName("ngram")
+                .longOpt("ngram")
+                .valueSeparator()
+                .desc("[OPTIONAL] The length of the n-gram that is used for the search, less then 4 may result in a very long computation time")
+                .build();
+        options.addOption(ngram);
         options.addOption(check);
         options.addOption("w","wodiak",false,"[OPTIONAL] use gt.wodiak.txt");
         return options;
@@ -363,5 +494,44 @@ public class Main {
 
     private static double getOverallSim() {
         return (double)simTotal/lineCount;
+    }
+
+    private static String buildCommand(String ocrLine, String gtDir, int ngram) {
+        String command = "";
+        command += "python3 search.py --query=";
+        command += ("\'" + ocrLine + "\' ");
+        command += "--path=";
+        command += ("\'" + gtDir + "\' ");
+        command += "--n-gram=";
+        command += ngram;
+        return command;
+    }
+
+    private static String retHit(String output) {
+        if(output.equals("")) {
+            return "";
+        } else {
+            String lines[] = output.split("Hit:");
+            lines = lines[1].split("at pos:");
+            return lines[0].replaceAll("\\\\r?\\\\n\"", "");
+        }
+    }
+
+    public static Textline generateOutput(String ocrText, String gtLine, Textline line) {
+        String[] result = Aligner.align(ocrText, gtLine);
+        line.setLines(result);
+        if (!shortResult || certainty >= line.calcSim()) {
+            System.out.println("\n\nTextLine ID: " + line.getId());
+            //ystem.out.println("\nTesting:\t" + ANSI_YELLOW + ocrText + ANSI_RESET);
+            //System.out.println();
+            System.out.println("Ocr aligned:\t" + result[2]);
+            System.out.println();
+            System.out.println("GT aligned:\t" + ANSI_GREEN + result[1] + ANSI_RESET);
+            System.out.println();
+            //System.out.println("GT Line:\t" + ANSI_CYAN + gtText + ANSI_RESET + "\n");
+
+            System.out.println("Similarity (using Levenshtein Distance): " + ANSI_CYAN + String.format("%.2f", line.calcSim() * 100) + "%" + ANSI_RESET);
+        }
+        return line;
     }
 }
